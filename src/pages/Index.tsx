@@ -26,38 +26,27 @@ const RESUME_LIMIT = 100;
 // Фото главного экрана (фото стола из задания)
 const DESK_PHOTO = 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/bucket/c2ed4224-ca6f-4e62-a947-1655ef7bf5c2.png';
 
-// Фотографии комнат (CCTV-стиль, вид вдоль комнаты — люди идут к камере)
+// Фотографии комнат (CCTV-стиль, fish-eye)
 const ROOM_PHOTOS: Record<number, string> = {
-  0: DESK_PHOTO,
-  1: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/af60c78e-08e8-486c-b974-23092d07897a.jpg', // Отдел разработки
-  2: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/f04656a6-0889-4c8a-b057-f4ca64a96ffc.jpg', // Переговорная
-  3: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/6987c781-e268-4cf1-b567-1aee79912a89.jpg', // Бухгалтерия
-  4: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/af60c78e-08e8-486c-b974-23092d07897a.jpg', // Отдел продаж
-  5: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/2609956c-d5f9-4707-b81a-69daee630629.jpg', // Коридор А
-  6: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/2609956c-d5f9-4707-b81a-69daee630629.jpg', // Коридор Б
-  7: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/a0f5f25c-86a4-4df1-a9b8-479c14598f91.jpg', // Столовая
-  8: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/367a4091-973c-47c8-bc9a-57e5f1e541bf.jpg', // Туалет
-  9: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/27de50c3-bb5e-46dc-876a-34f9f5560208.jpg', // Парковка
+  0: DESK_PHOTO, // Кабинет HR — главное фото
+  1: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/9d240944-322c-458d-945b-65588a2bfb5c.jpg', // Отдел разработки
+  2: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/a34f21c5-566f-4ea1-8737-23fc29750402.jpg', // Переговорная
+  3: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/4dcc0c21-0125-4d8d-b71d-fd14e8f15878.jpg', // Бухгалтерия
+  4: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/9d240944-322c-458d-945b-65588a2bfb5c.jpg', // Отдел продаж
+  5: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/197b345c-78a7-4562-af38-3ddfd815c97a.jpg', // Коридор А
+  6: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/197b345c-78a7-4562-af38-3ddfd815c97a.jpg', // Коридор Б
+  7: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/0f720868-5c9c-4b5f-982e-d82d375da33f.jpg', // Столовая
+  8: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/a439c065-2c43-427a-8800-2b1fb71dbde4.jpg', // Туалет
+  9: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/aebc9704-878e-4a16-adda-b5ad130f1bc9.jpg', // Парковка
 };
 
-// Перспективные области — координаты углов экранов на фото (% от ширины/высоты)
-// Фото: левый монитор повёрнут вправо (правая сторона ближе), правый — влево
-// Ноутбук по центру чуть наклонён назад (верх уже, низ шире)
-// clip-path polygon задаёт точный трапециевидный контур каждого экрана
-
-// Координаты углов: top-left, top-right, bottom-right, bottom-left
-const LEFT_MON_CLIP  = 'polygon(7% 0%, 97% 3%, 100% 97%, 0% 100%)';   // левый монитор — левый край тоньше
-const RIGHT_MON_CLIP = 'polygon(3% 3%, 93% 0%, 100% 100%, 0% 97%)';   // правый монитор — правый край тоньше
-const LAPTOP_CLIP    = 'polygon(4% 2%, 96% 2%, 98% 98%, 2% 98%)';     // ноутбук — почти прямоугольник, слегка трапеция
-
-// Простые области (hotspot-ы без трансформации)
-const COFFEE_AREA   = { left: '75%', top: '55%', width: '10%', height: '16%' };
-const RED_BTN_AREA  = { left: '44%', top: '73%', width: '5%',  height: '7%'  };
-
-// Bounding box + clip для мониторов и ноутбука
-const LEFT_MON_BOX   = { left: '0.5%',  top: '12%', width: '31%', height: '54%' };
-const RIGHT_MON_BOX  = { left: '68.5%', top: '12%', width: '31%', height: '54%' };
-const LAPTOP_BOX     = { left: '29%',   top: '10%', width: '42%', height: '58%' };
+// Области интерактивных элементов на фото стола (% от размера)
+// Настроены под фото: ноутбук по центру, левый монитор слева, кофе справа
+const LAPTOP_AREA   = { left: '30%', top: '14%', width: '40%', height: '55%' };
+const LEFT_MON_AREA = { left: '1%',  top: '14%', width: '29%', height: '52%' };
+const RIGHT_MON_AREA= { left: '71%', top: '14%', width: '28%', height: '52%' };
+const COFFEE_AREA   = { left: '75%', top: '55%', width: '12%', height: '18%' };
+const RED_BTN_AREA  = { left: '45%', top: '72%', width: '6%',  height: '8%'  };
 
 function getLocalRecords(): GameRecord[] {
   try { return JSON.parse(localStorage.getItem('hr_records') || '[]'); } catch { return []; }
@@ -410,78 +399,69 @@ function CenterView({ resumes, dismissResume, redButtonUsed, redButtonActive, us
 
   return (
     <div className="photo-desk-scene">
-      {/* Фото стола — базовый слой */}
+      {/* Фото стола как фон */}
       <img src={DESK_PHOTO} className="desk-photo-bg" alt="desk" draggable={false} />
 
-      {/* ── ЛЕВЫЙ МОНИТОР: bounding box + clip-path для перспективы ── */}
-      <div className="persp-screen persp-screen-left" style={LEFT_MON_BOX}
-        onClick={() => setView('left')} title="Камеры наблюдения">
-        <div className="persp-content" style={{ clipPath: LEFT_MON_CLIP }}>
-          <div className="persp-inner cameras-overlay">
-            <div className="cam-grid-over">
-              {[0,1,2,3,4,5,6,7,8,9].map(i => (
-                <div key={i} className="cam-over-cell">
-                  <img src={ROOM_PHOTOS[i]} alt="" className="cam-over-img" />
-                  <span className="cam-over-label">CAM {String(i+1).padStart(2,'0')}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-        <div className="persp-hint">📷 Камеры</div>
-      </div>
-
-      {/* ── НОУТБУК: по центру, слегка наклонён (экран ближе к зрителю снизу) ── */}
-      <div className="persp-screen persp-screen-laptop" style={LAPTOP_BOX}>
-        <div className="persp-content" style={{ clipPath: LAPTOP_CLIP }}>
-          <div className="persp-inner laptop-overlay-inner">
-            <div className="laptop-url-bar">
-              <span className="url-dot green" /><span className="url-dot yellow" /><span className="url-dot red" />
-              <span className="url-text">🌐 АйНаНэНаНэ.хрю — Поиск персонала</span>
-            </div>
-            <div className="resume-list" ref={listRef}
-              onWheel={e => { e.stopPropagation(); if (listRef.current) listRef.current.scrollTop += e.deltaY; }}>
-              {resumes.length === 0
-                ? <div className="resume-placeholder">📭 Пока тихо...</div>
-                : resumes.map(r => <ResumeCard key={r.id} resume={r} onDismiss={dismissResume} />)
-              }
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── ПРАВЫЙ МОНИТОР: bounding box + clip-path ── */}
-      <div className="persp-screen persp-screen-right" style={RIGHT_MON_BOX}
-        onClick={() => !coffeeEmpty ? drinkCoffee() : goRefill()}
-        title={coffeeEmpty ? 'Идти за кофе' : 'Сделать глоток'}>
-        <div className="persp-content" style={{ clipPath: RIGHT_MON_CLIP }}>
-          <div className="persp-inner coffee-overlay">
-            <div className="coffee-mon-inner">
-              <div className="coffee-glass-visual">
-                <div className="coffee-glass-body">
-                  {!coffeeEmpty && <div className="coffee-glass-liquid" style={{ height: `${(coffeeSips / COFFEE_MAX_SIPS) * 68}%` }} />}
-                  <div className="coffee-steam" style={{ opacity: coffeeEmpty ? 0 : 1 }}>
-                    <span>〜</span><span style={{ animationDelay: '0.3s' }}>〜</span>
-                  </div>
-                </div>
-                <div className="coffee-glass-handle" />
+      {/* ── ЛЕВЫЙ МОНИТОР — кликабельный, ведёт на камеры ── */}
+      <div className="desk-overlay" style={LEFT_MON_AREA} onClick={() => setView('left')} title="Открыть камеры">
+        <div className="monitor-overlay-screen cameras-overlay">
+          <div className="cam-grid-over">
+            {[0,1,2,3,4,5,6,7,8,9].map(i => (
+              <div key={i} className="cam-over-cell">
+                <img src={ROOM_PHOTOS[i]} alt="" className="cam-over-img" />
+                <span className="cam-over-label">CAM {String(i+1).padStart(2,'0')}</span>
               </div>
-              <div className="coffee-mon-info">
-                <div className="coffee-sips-count">{coffeeEmpty ? '💧 Пусто' : `☕ ${coffeeSips}/${COFFEE_MAX_SIPS}`}</div>
-                {coffeeWalking && <div className="coffee-walking-bar"><div className="cwb-fill" style={{ width: `${coffeeProgress * 100}%` }} /></div>}
-                {coffeeWalking && <div className="coffee-walking-text">🚶‍♀️ {Math.round(coffeeProgress * 100)}%</div>}
-                {coffeeEmpty && !coffeeWalking && <div className="coffee-refill-hint">Нажми!</div>}
-              </div>
-            </div>
+            ))}
           </div>
+          <div className="monitor-click-hint">📷 Нажми для просмотра</div>
         </div>
-        <div className="persp-hint">{coffeeEmpty ? '🚶 Налить кофе' : '☕ Глоток'}</div>
       </div>
 
-      {/* ── КРУЖКА кофе на столе ── */}
+      {/* ── НОУТБУК — сайт с резюме ── */}
+      <div className="desk-overlay laptop-overlay" style={LAPTOP_AREA}>
+        <div className="laptop-inner-screen">
+          <div className="laptop-url-bar">
+            <span className="url-dot green" /><span className="url-dot yellow" /><span className="url-dot red" />
+            <span className="url-text">🌐 АйНаНэНаНэ.хрю — Поиск персонала</span>
+          </div>
+          <div className="resume-list" ref={listRef}
+            onWheel={e => { e.stopPropagation(); if (listRef.current) listRef.current.scrollTop += e.deltaY; }}>
+            {resumes.length === 0
+              ? <div className="resume-placeholder">📭 Пока тихо...</div>
+              : resumes.map(r => <ResumeCard key={r.id} resume={r} onDismiss={dismissResume} />)
+            }
+          </div>
+        </div>
+      </div>
+
+      {/* ── ПРАВЫЙ МОНИТОР — кофе и кофемашина ── */}
+      <div className="desk-overlay" style={RIGHT_MON_AREA} onClick={() => !coffeeEmpty ? drinkCoffee() : goRefill()} title={coffeeEmpty ? 'Идти за кофе' : 'Сделать глоток'}>
+        <div className="monitor-overlay-screen coffee-overlay">
+          <div className="coffee-mon-inner">
+            <div className="coffee-glass-visual">
+              <div className="coffee-glass-body">
+                {!coffeeEmpty && <div className="coffee-glass-liquid" style={{ height: `${(coffeeSips / COFFEE_MAX_SIPS) * 68}%` }} />}
+                <div className="coffee-steam" style={{ opacity: coffeeEmpty ? 0 : 1 }}>
+                  <span>〜</span><span style={{ animationDelay: '0.3s' }}>〜</span>
+                </div>
+              </div>
+              <div className="coffee-glass-handle" />
+            </div>
+            <div className="coffee-mon-info">
+              <div className="coffee-sips-count">{coffeeEmpty ? '💧 Пусто' : `☕ ${coffeeSips}/${COFFEE_MAX_SIPS}`}</div>
+              {coffeeWalking && <div className="coffee-walking-bar"><div className="cwb-fill" style={{ width: `${coffeeProgress * 100}%` }} /></div>}
+              {coffeeWalking && <div className="coffee-walking-text">🚶‍♀️ {Math.round(coffeeProgress * 100)}%</div>}
+              {coffeeEmpty && !coffeeWalking && <div className="coffee-refill-hint">Нажми!</div>}
+            </div>
+          </div>
+          <div className="monitor-click-hint">{coffeeEmpty ? '🚶 Налить кофе' : '☕ Выпить глоток'}</div>
+        </div>
+      </div>
+
+      {/* ── КОФЕЙНАЯ КРУЖКА на столе (отдельный клик) ── */}
       <div className="desk-overlay coffee-cup-hotspot" style={COFFEE_AREA}
         onClick={() => !coffeeEmpty ? drinkCoffee() : goRefill()}
-        title={coffeeEmpty ? 'Пусто' : 'Выпить глоток'}>
+        title={coffeeEmpty ? 'Пусто — иди к кофемашине' : 'Выпить глоток'}>
         <div className={`cup-hotspot-indicator ${coffeeEmpty ? 'empty' : ''}`}>
           <div className="cup-fill-bar" style={{ height: `${(coffeeSips / COFFEE_MAX_SIPS) * 100}%` }} />
         </div>
@@ -496,7 +476,7 @@ function CenterView({ resumes, dismissResume, redButtonUsed, redButtonActive, us
         </div>
       </div>
 
-      {/* Алерты */}
+      {/* Алерты поверх фото */}
       {hrAlive > 0 && <div className="intruder-alert">⚠️ В КАБИНЕТЕ {hrAlive} СОИСКАТЕЛ{hrAlive === 1 ? 'Ь' : 'Я'}!</div>}
       {doorsClosed && <div className="doors-closed-banner">🚪 ДВЕРИ ЗАКРЫТЫ — {Math.ceil(doorsTimer / 1000)}с</div>}
     </div>
@@ -655,10 +635,8 @@ function CctvApplicant({ applicant, index, watching }: { applicant: Applicant; i
   const bodyH = tall ? 70 : short ? 46 : 58;
   const bodyW = chubby ? 26 : 18;
   const legH = tall ? 34 : short ? 22 : 28;
-  // Персонажи стоят внизу кадра — они идут по полу, а не по потолку
-  // Камера смотрит сверху-вниз, поэтому bottom небольшой (ближе к низу)
-  const xPos = 15 + index * 30;
-  const yPos = 4 + (index % 2) * 6; // маленький bottom = низ кадра = пол
+  const xPos = 12 + index * 28;
+  const yPos = 38 + (index % 2) * 8;
 
   return (
     <div className={`cctv-applicant ${watching ? 'watching' : 'walking'}`}
