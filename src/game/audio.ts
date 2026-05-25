@@ -69,6 +69,17 @@ export function startOfficeAmbience() {
   }
 }
 
+// volume: 0..1 (от ползунка)
+export function setAmbienceVolume(volume: number) {
+  try {
+    if (!humGain || !ctx) return;
+    // Максимальная громкость лампы = 0.06, минимум = 0
+    humGain.gain.setTargetAtTime(volume * 0.06, ctx.currentTime, 0.1);
+  } catch (e) {
+    // ignore
+  }
+}
+
 export function stopOfficeAmbience() {
   try {
     if (humGain) {

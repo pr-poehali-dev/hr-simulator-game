@@ -9,7 +9,8 @@ import { PERSON_STYLES, renderPersonSVG, svgToDataUrl } from '@/game/people';
 import {
   initAudio, startOfficeAmbience, stopOfficeAmbience,
   playRejectSound, playPopSound,
-  startApplicantSpeech, stopApplicantSpeech, stopAllApplicantSpeech
+  startApplicantSpeech, stopApplicantSpeech, stopAllApplicantSpeech,
+  setAmbienceVolume
 } from '@/game/audio';
 
 type GameState = 'menu' | 'playing' | 'paused' | 'gameover';
@@ -317,7 +318,7 @@ export default function Index() {
     <div className="game-root">
       {blurAmt > 0 && <div className="game-blur-overlay" style={{ backdropFilter: `blur(${blurAmt}px)`, WebkitBackdropFilter: `blur(${blurAmt}px)` }} />}
       {bloodOpacity > 0 && <div className="blood-vignette" style={{ opacity: bloodOpacity }} />}
-      <HUD elapsed={elapsed} energy={energy} resumeCount={resumes.length} hrAlive={hrAlive.length} gameHour={gameHour} />
+      <HUD elapsed={elapsed} energy={energy} resumeCount={resumes.length} hrAlive={hrAlive.length} gameHour={gameHour} onVolumeChange={setAmbienceVolume} />
       <div className="game-scene">
         {view === 'left' && <LeftView applicants={applicants} selectedRoom={selectedRoom} setSelectedRoom={r => { setSelectedRoom(r); setShowMap(false); }} showMap={showMap} setShowMap={setShowMap} setView={setView} onPopApplicant={popApplicant} />}
         {view === 'center' && <CenterView resumes={resumes} dismissResume={dismissResume} redButtonUsed={redButtonUsed} redButtonActive={redButtonActive} useRedButton={useRedButton} doorsClosed={doorsClosed} doorsTimer={doorsTimer} hrAlive={hrAlive.length} setView={setView} coffeeSips={coffeeSips} coffeeEmpty={coffeeEmpty} drinkCoffee={drinkCoffee} goRefill={goRefill} coffeeWalking={coffeeWalking} coffeeProgress={coffeeProgress} />}
@@ -333,7 +334,18 @@ export default function Index() {
 }
 
 /* ══ HUD ══ */
-function HUD({ elapsed, energy, resumeCount, hrAlive, gameHour }: { elapsed: number; energy: number; resumeCount: number; hrAlive: number; gameHour: number }) {
+function HUD({ elapsed, energy, resumeCount, hrAlive, gameHour, onVolumeChange }: {
+  elapsed: number; energy: number; resumeCount: number; hrAlive: number; gameHour: number;
+  onVolumeChange: (v: number) => void;
+}) {
+  const [vol, setVol] = React.useState(0.37); // ~0.022 / 0.06 ≈ 37% от максимума
+
+  const handleVol = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = Number(e.target.value);
+    setVol(v);
+    onVolumeChange(v);
+  };
+
   return (
     <div className="hud">
       <div className="hud-left">
@@ -345,11 +357,24 @@ function HUD({ elapsed, energy, resumeCount, hrAlive, gameHour }: { elapsed: num
         <div className={`hud-stat ${hrAlive >= 1 ? 'danger' : ''}`}>😰 В кабинете: {hrAlive}/2</div>
       </div>
       <div className="hud-right">
-        <span className="hud-energy-label">⚡ Энергия</span>
-        <div className="energy-bar">
-          <div className="energy-fill" style={{ width: `${energy}%`, background: energy > 60 ? '#eab308' : energy > 30 ? '#f97316' : '#ef4444' }} />
+        <div className="hud-volume">
+          <span className="hud-vol-icon" title="Громкость офиса">🔊</span>
+          <input
+            type="range"
+            min={0} max={1} step={0.01}
+            value={vol}
+            onChange={handleVol}
+            className="hud-vol-slider"
+            title={`Фон: ${Math.round(vol * 100)}%`}
+          />
         </div>
-        <span className={`energy-num ${energy < 30 ? 'danger' : ''}`}>{Math.round(energy)}</span>
+        <div className="hud-energy-wrap">
+          <span className="hud-energy-label">⚡</span>
+          <div className="energy-bar">
+            <div className="energy-fill" style={{ width: `${energy}%`, background: energy > 60 ? '#eab308' : energy > 30 ? '#f97316' : '#ef4444' }} />
+          </div>
+          <span className={`energy-num ${energy < 30 ? 'danger' : ''}`}>{Math.round(energy)}</span>
+        </div>
       </div>
     </div>
   );

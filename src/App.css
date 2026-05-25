@@ -342,8 +342,59 @@ body {
 .hud-right {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 14px;
   margin-left: auto;
+}
+.hud-volume {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.hud-vol-icon {
+  font-size: 13px;
+  opacity: 0.7;
+  cursor: default;
+}
+.hud-vol-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 72px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.hud-vol-slider:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+.hud-vol-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #f0d070;
+  box-shadow: 0 0 4px rgba(240, 208, 112, 0.5);
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+.hud-vol-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.25);
+}
+.hud-vol-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #f0d070;
+  border: none;
+  cursor: pointer;
+}
+.hud-energy-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 .hud-energy-label {
   color: #604838;
