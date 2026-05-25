@@ -78,8 +78,8 @@ export function startOfficeAmbience() {
       officeGainNode.connect(ac.destination);
       officeNoiseNode.start();
 
-      // Плавный fade-in
-      officeGainNode.gain.linearRampToValueAtTime(0.04, ac.currentTime + 3);
+      // Плавный fade-in — шум/вытяжка тише лампы
+      officeGainNode.gain.linearRampToValueAtTime(0.008, ac.currentTime + 3);
     }
   } catch (e) {
     // Тихо игнорируем — браузер мог заблокировать
@@ -182,15 +182,14 @@ export function startApplicantSpeech(applicantId: number, descIndex: number) {
   stopApplicantSpeech(applicantId);
 
   const cfg = APPLICANT_VOICE_CONFIGS[descIndex % APPLICANT_VOICE_CONFIGS.length];
-  let phraseIdx = 0;
 
   const speak = () => {
     try {
       const synth = window.speechSynthesis;
       if (!synth) return;
 
-      const phrase = APPLICANT_PHRASES[phraseIdx % APPLICANT_PHRASES.length];
-      phraseIdx++;
+      // Случайная реплика из массива — может повторяться, полностью случайно
+      const phrase = APPLICANT_PHRASES[Math.floor(Math.random() * APPLICANT_PHRASES.length)];
 
       const utt = new SpeechSynthesisUtterance(phrase);
       utt.lang = 'ru-RU';
