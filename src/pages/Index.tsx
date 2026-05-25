@@ -26,18 +26,19 @@ const RESUME_LIMIT = 100;
 // Фото главного экрана (фото стола из задания)
 const DESK_PHOTO = 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/bucket/c2ed4224-ca6f-4e62-a947-1655ef7bf5c2.png';
 
-// Фотографии комнат (CCTV-стиль, fish-eye)
+// Фотографии комнат — CCTV ракурс: камера под потолком смотрит ВНИЗ и ВПЕРЁД,
+// виден пол и люди (не потолок). Новые фото сгенерированы с правильным углом.
 const ROOM_PHOTOS: Record<number, string> = {
   0: DESK_PHOTO, // Кабинет HR — главное фото
-  1: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/9d240944-322c-458d-945b-65588a2bfb5c.jpg', // Отдел разработки
-  2: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/a34f21c5-566f-4ea1-8737-23fc29750402.jpg', // Переговорная
-  3: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/4dcc0c21-0125-4d8d-b71d-fd14e8f15878.jpg', // Бухгалтерия
-  4: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/9d240944-322c-458d-945b-65588a2bfb5c.jpg', // Отдел продаж
-  5: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/197b345c-78a7-4562-af38-3ddfd815c97a.jpg', // Коридор А
-  6: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/197b345c-78a7-4562-af38-3ddfd815c97a.jpg', // Коридор Б
-  7: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/0f720868-5c9c-4b5f-982e-d82d375da33f.jpg', // Столовая
-  8: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/a439c065-2c43-427a-8800-2b1fb71dbde4.jpg', // Туалет
-  9: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/aebc9704-878e-4a16-adda-b5ad130f1bc9.jpg', // Парковка
+  1: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/af60c78e-08e8-486c-b974-23092d07897a.jpg', // Отдел разработки
+  2: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/f04656a6-0889-4c8a-b057-f4ca64a96ffc.jpg', // Переговорная
+  3: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/6987c781-e268-4cf1-b567-1aee79912a89.jpg', // Бухгалтерия
+  4: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/af60c78e-08e8-486c-b974-23092d07897a.jpg', // Отдел продаж
+  5: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/2609956c-d5f9-4707-b81a-69daee630629.jpg', // Коридор А
+  6: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/2609956c-d5f9-4707-b81a-69daee630629.jpg', // Коридор Б
+  7: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/a0f5f25c-86a4-4df1-a9b8-479c14598f91.jpg', // Столовая
+  8: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/367a4091-973c-47c8-bc9a-57e5f1e541bf.jpg', // Туалет
+  9: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/27de50c3-bb5e-46dc-876a-34f9f5560208.jpg', // Парковка
 };
 
 // Области интерактивных элементов на фото стола (% от размера)
@@ -635,8 +636,9 @@ function CctvApplicant({ applicant, index, watching }: { applicant: Applicant; i
   const bodyH = tall ? 70 : short ? 46 : 58;
   const bodyW = chubby ? 26 : 18;
   const legH = tall ? 34 : short ? 22 : 28;
-  const xPos = 12 + index * 28;
-  const yPos = 38 + (index % 2) * 8;
+  const xPos = 15 + index * 30;
+  // bottom маленький = персонаж у нижнего края = стоит на полу
+  const yPos = 3 + (index % 2) * 5;
 
   return (
     <div className={`cctv-applicant ${watching ? 'watching' : 'walking'}`}
