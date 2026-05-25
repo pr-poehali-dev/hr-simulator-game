@@ -10,15 +10,9 @@ type GameState = 'menu' | 'playing' | 'paused' | 'gameover';
 type ViewDir = 'center' | 'left' | 'right';
 type DeathReason = '' | 'resumes' | 'applicants' | 'energy' | 'win';
 
-interface Resume {
-  id: number; name: string; age: number; position: string; gender: string; avatarIndex: number;
-}
-interface Applicant {
-  id: number; roomId: number; descIndex: number; name: string; alive: boolean; stopped: boolean;
-}
-interface GameRecord {
-  survived: string; resumes: number; date: string;
-}
+interface Resume { id: number; name: string; age: number; position: string; gender: string; avatarIndex: number; }
+interface Applicant { id: number; roomId: number; descIndex: number; name: string; alive: boolean; stopped: boolean; }
+interface GameRecord { survived: string; resumes: number; date: string; }
 
 const GAME_DURATION_MS = 30 * 60 * 1000;
 const GAME_START_HOUR = 9;
@@ -28,6 +22,31 @@ const HR_ROOM_ID = 0;
 const COFFEE_MAX_SIPS = 5;
 const ENERGY_DRAIN_BASE = 0.35;
 const RESUME_LIMIT = 100;
+
+// Фото главного экрана (фото стола из задания)
+const DESK_PHOTO = 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/bucket/c2ed4224-ca6f-4e62-a947-1655ef7bf5c2.png';
+
+// Фотографии комнат (CCTV-стиль, fish-eye)
+const ROOM_PHOTOS: Record<number, string> = {
+  0: DESK_PHOTO, // Кабинет HR — главное фото
+  1: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/9d240944-322c-458d-945b-65588a2bfb5c.jpg', // Отдел разработки
+  2: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/a34f21c5-566f-4ea1-8737-23fc29750402.jpg', // Переговорная
+  3: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/4dcc0c21-0125-4d8d-b71d-fd14e8f15878.jpg', // Бухгалтерия
+  4: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/9d240944-322c-458d-945b-65588a2bfb5c.jpg', // Отдел продаж
+  5: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/197b345c-78a7-4562-af38-3ddfd815c97a.jpg', // Коридор А
+  6: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/197b345c-78a7-4562-af38-3ddfd815c97a.jpg', // Коридор Б
+  7: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/0f720868-5c9c-4b5f-982e-d82d375da33f.jpg', // Столовая
+  8: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/a439c065-2c43-427a-8800-2b1fb71dbde4.jpg', // Туалет
+  9: 'https://cdn.poehali.dev/projects/e0874469-9515-4729-83b9-a3bd812bdfd7/files/aebc9704-878e-4a16-adda-b5ad130f1bc9.jpg', // Парковка
+};
+
+// Области интерактивных элементов на фото стола (% от размера)
+// Настроены под фото: ноутбук по центру, левый монитор слева, кофе справа
+const LAPTOP_AREA   = { left: '30%', top: '14%', width: '40%', height: '55%' };
+const LEFT_MON_AREA = { left: '1%',  top: '14%', width: '29%', height: '52%' };
+const RIGHT_MON_AREA= { left: '71%', top: '14%', width: '28%', height: '52%' };
+const COFFEE_AREA   = { left: '75%', top: '55%', width: '12%', height: '18%' };
+const RED_BTN_AREA  = { left: '45%', top: '72%', width: '6%',  height: '8%'  };
 
 function getLocalRecords(): GameRecord[] {
   try { return JSON.parse(localStorage.getItem('hr_records') || '[]'); } catch { return []; }
@@ -47,8 +66,7 @@ function formatGameTime(elapsed: number): string {
   return `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
 }
 function getGameHour(elapsed: number): number {
-  const ratio = elapsed / GAME_DURATION_MS;
-  return Math.min(TOTAL_GAME_HOURS - 1, Math.floor(ratio * TOTAL_GAME_HOURS));
+  return Math.min(TOTAL_GAME_HOURS - 1, Math.floor((elapsed / GAME_DURATION_MS) * TOTAL_GAME_HOURS));
 }
 
 export default function Index() {
@@ -73,6 +91,7 @@ export default function Index() {
   const [showRecords, setShowRecords] = useState(false);
   const [survivedTime, setSurvivedTime] = useState('09:00');
   const [processedResumes, setProcessedResumes] = useState(0);
+  const [seconds, setSeconds] = useState(0);
 
   const resumeIdRef = useRef(0);
   const applicantIdRef = useRef(0);
@@ -121,6 +140,7 @@ export default function Index() {
         if (next >= GAME_DURATION_MS) { setTimeout(() => die('win'), 0); }
         return next;
       });
+      setSeconds(s => s + 1);
       const hour = getGameHour(elapsedRef.current);
       const drain = ENERGY_DRAIN_BASE * (1 + hour * 0.25);
       setEnergy(prev => {
@@ -248,8 +268,8 @@ export default function Index() {
 
   const gameHour = getGameHour(elapsed);
   const hrAlive = applicants.filter(a => a.alive && a.roomId === HR_ROOM_ID);
-  const blurAmt = energy < 80 ? ((80 - energy) / 80) * 14 : 0;
-  const bloodOpacity = energy < 80 ? ((80 - energy) / 80) * 0.85 : 0;
+  const blurAmt = energy < 80 ? ((80 - energy) / 80) * 12 : 0;
+  const bloodOpacity = energy < 80 ? ((80 - energy) / 80) * 0.8 : 0;
 
   if (gameState === 'menu') return <MenuScreen onStart={resetGame} showRecords={showRecords} setShowRecords={setShowRecords} records={records} />;
   if (gameState === 'gameover') return <GameOverScreen reason={deathReason} time={survivedTime} resumes={processedResumes} onRestart={resetGame} onMenu={() => setGameState('menu')} />;
@@ -271,25 +291,25 @@ export default function Index() {
       <HUD elapsed={elapsed} energy={energy} resumeCount={resumes.length} hrAlive={hrAlive.length} gameHour={gameHour} />
       <div className="game-scene">
         {view === 'left' && <LeftView applicants={applicants} selectedRoom={selectedRoom} setSelectedRoom={r => { setSelectedRoom(r); setShowMap(false); }} showMap={showMap} setShowMap={setShowMap} setView={setView} />}
-        {view === 'center' && <CenterView resumes={resumes} dismissResume={dismissResume} redButtonUsed={redButtonUsed} redButtonActive={redButtonActive} useRedButton={useRedButton} doorsClosed={doorsClosed} doorsTimer={doorsTimer} hrAlive={hrAlive.length} setView={setView} />}
-        {view === 'right' && <RightView coffeeSips={coffeeSips} coffeeWalking={coffeeWalking} coffeeProgress={coffeeProgress} coffeeEmpty={coffeeEmpty} drinkCoffee={drinkCoffee} goRefill={goRefill} setView={setView} energy={energy} />}
+        {view === 'center' && <CenterView resumes={resumes} dismissResume={dismissResume} redButtonUsed={redButtonUsed} redButtonActive={redButtonActive} useRedButton={useRedButton} doorsClosed={doorsClosed} doorsTimer={doorsTimer} hrAlive={hrAlive.length} setView={setView} coffeeSips={coffeeSips} coffeeEmpty={coffeeEmpty} drinkCoffee={drinkCoffee} goRefill={goRefill} coffeeWalking={coffeeWalking} coffeeProgress={coffeeProgress} />}
+        {view === 'right' && <LeftView applicants={applicants} selectedRoom={selectedRoom} setSelectedRoom={r => { setSelectedRoom(r); setShowMap(false); }} showMap={showMap} setShowMap={setShowMap} setView={setView} />}
       </div>
       <div className="view-nav">
         <button className={`vnav-btn ${view === 'left' ? 'active' : ''}`} onClick={() => setView('left')}>◀ Камеры</button>
         <button className={`vnav-btn ${view === 'center' ? 'active' : ''}`} onClick={() => setView('center')}>Рабочий стол</button>
-        <button className={`vnav-btn ${view === 'right' ? 'active' : ''}`} onClick={() => setView('right')}>Кофе ▶</button>
+        <button className={`vnav-btn ${view === 'right' ? 'active' : ''}`} onClick={() => { setView('left'); }}>Камеры ▶</button>
       </div>
     </div>
   );
 }
 
-/* ═══════════════════════════════ HUD ═══════════════════════════════ */
+/* ══ HUD ══ */
 function HUD({ elapsed, energy, resumeCount, hrAlive, gameHour }: { elapsed: number; energy: number; resumeCount: number; hrAlive: number; gameHour: number }) {
   return (
     <div className="hud">
       <div className="hud-left">
         <div className="hud-time">⏰ {formatGameTime(elapsed)}</div>
-        <div className="hud-hour">Час {gameHour + 1} / {TOTAL_GAME_HOURS}</div>
+        <div className="hud-hour">Час {gameHour + 1}/{TOTAL_GAME_HOURS}</div>
       </div>
       <div className="hud-center">
         <div className={`hud-stat ${resumeCount > 80 ? 'danger' : resumeCount > 60 ? 'warn' : ''}`}>📄 {resumeCount}/100</div>
@@ -306,58 +326,52 @@ function HUD({ elapsed, energy, resumeCount, hrAlive, gameHour }: { elapsed: num
   );
 }
 
-/* ═══════════════════════════════ MENU ═══════════════════════════════ */
+/* ══ MENU ══ */
 function MenuScreen({ onStart, showRecords, setShowRecords, records }: { onStart: () => void; showRecords: boolean; setShowRecords: (v: boolean) => void; records: GameRecord[] }) {
   return (
     <div className="menu-screen">
       <div className="menu-bg" />
       <div className="menu-content">
-        <div className="menu-top">
-          <div className="menu-badge">☕ Офисный хоррор</div>
-          <h1 className="menu-title">Симулятор HRки</h1>
-          <p className="menu-sub">Выживи с 09:00 до 18:00. Не дай им добраться.</p>
-        </div>
+        <div className="menu-badge">☕ Офисный хоррор</div>
+        <h1 className="menu-title">Симулятор HRки</h1>
+        <p className="menu-sub">Выживи с 09:00 до 18:00. Не дай им добраться.</p>
         <div className="menu-btns">
           <button className="btn-primary" onClick={onStart}>▶ Новая игра</button>
           <button className="btn-ghost" onClick={() => setShowRecords(!showRecords)}>🏆 Рекорды</button>
         </div>
         {showRecords && (
           <div className="records-panel">
-            <h3>Таблица рекордов (локальная)</h3>
-            {records.length === 0 ? <p className="records-empty">Рекордов пока нет — дерзай!</p>
+            <h3>Таблица рекордов</h3>
+            {records.length === 0 ? <p className="records-empty">Рекордов пока нет!</p>
               : <table className="records-table">
-                  <thead><tr><th>#</th><th>До скольки</th><th>Резюме отклонено</th><th>Дата</th></tr></thead>
-                  <tbody>{records.map((r, i) => <tr key={i}><td>{i + 1}</td><td>{r.survived}</td><td>{r.resumes}</td><td>{r.date}</td></tr>)}</tbody>
+                  <thead><tr><th>#</th><th>До скольки</th><th>Резюме</th><th>Дата</th></tr></thead>
+                  <tbody>{records.map((r, i) => <tr key={i}><td>{i+1}</td><td>{r.survived}</td><td>{r.resumes}</td><td>{r.date}</td></tr>)}</tbody>
                 </table>
             }
           </div>
         )}
-        <div className="menu-controls">
-          <span>← → Повернуть голову</span>
-          <span>ESC Пауза</span>
-          <span>🖱️ Мышь — всё управление</span>
-        </div>
+        <div className="menu-controls"><span>← → Камера</span><span>ESC Пауза</span><span>🖱️ Мышь</span></div>
       </div>
     </div>
   );
 }
 
-/* ═══════════════════════════════ GAME OVER ═══════════════════════════════ */
+/* ══ GAME OVER ══ */
 function GameOverScreen({ reason, time, resumes, onRestart, onMenu }: { reason: DeathReason; time: string; resumes: number; onRestart: () => void; onMenu: () => void }) {
   const won = reason === 'win';
-  const icon = won ? '🎉' : reason === 'resumes' ? '📄' : reason === 'applicants' ? '😱' : '💤';
-  const reasonText: Record<string, string> = {
-    resumes: 'Резюме переполнили весь экран (100 штук). HRка сдалась.',
-    applicants: 'Два соискателя ворвались в кабинет. Собеседование не пережить.',
-    energy: 'Энергия упала до нуля. HRка уснула прямо за ноутбуком.',
-    win: 'Ты выжила! Рабочий день позади. Ты настоящий HR-герой!'
+  const icons: Record<string, string> = { resumes: '📄', applicants: '😱', energy: '💤', win: '🎉' };
+  const texts: Record<string, string> = {
+    resumes: 'Резюме переполнили экран (100 штук). HRка сдалась.',
+    applicants: 'Два соискателя ворвались в кабинет.',
+    energy: 'Энергия на нуле. HRка уснула.',
+    win: 'Ты выжила! Настоящий HR-герой!'
   };
   return (
     <div className={`gameover-screen ${won ? 'win' : ''}`}>
       <div className="gameover-box">
-        <div className="gameover-icon">{icon}</div>
+        <div className="gameover-icon">{icons[reason] || '💀'}</div>
         <h1>{won ? 'ДЕНЬ ОКОНЧЕН!' : 'КОНЕЦ'}</h1>
-        <p className="gameover-reason">{reasonText[reason] || ''}</p>
+        <p className="gameover-reason">{texts[reason] || ''}</p>
         <div className="gameover-stats">
           <div className="gstat"><div className="gstat-val">{time}</div><div className="gstat-label">Продержалась до</div></div>
           <div className="gstat"><div className="gstat-val">{resumes}</div><div className="gstat-label">Резюме отклонено</div></div>
@@ -371,184 +385,105 @@ function GameOverScreen({ reason, time, resumes, onRestart, onMenu }: { reason: 
   );
 }
 
-/* ═══════════════════════════════ CENTER VIEW (объёмный стол) ═══════════════════════════════ */
-function CenterView({ resumes, dismissResume, redButtonUsed, redButtonActive, useRedButton, doorsClosed, doorsTimer, hrAlive, setView }: {
+/* ══════════════════════════════════════════════════════
+   CENTER VIEW — ФОТО РАБОЧЕГО СТОЛА С ИНТЕРАКТИВОМ
+══════════════════════════════════════════════════════ */
+function CenterView({ resumes, dismissResume, redButtonUsed, redButtonActive, useRedButton,
+  doorsClosed, doorsTimer, hrAlive, setView, coffeeSips, coffeeEmpty, drinkCoffee, goRefill, coffeeWalking, coffeeProgress }: {
   resumes: Resume[]; dismissResume: (id: number) => void; redButtonUsed: boolean; redButtonActive: boolean;
   useRedButton: () => void; doorsClosed: boolean; doorsTimer: number; hrAlive: number; setView: (v: ViewDir) => void;
+  coffeeSips: number; coffeeEmpty: boolean; drinkCoffee: () => void; goRefill: () => void;
+  coffeeWalking: boolean; coffeeProgress: number;
 }) {
   const listRef = useRef<HTMLDivElement>(null);
 
   return (
-    <div className="center-view">
-      {/* Комната — стены, окно, потолок */}
-      <div className="room-3d">
-        <div className="room-ceiling" />
-        <div className="room-wall-back" />
-        <div className="room-wall-left" />
-        <div className="room-wall-right" />
-        {/* Окно на задней стене */}
-        <div className="room-window">
-          <div className="window-sky" />
-          <div className="window-frame-h" />
-          <div className="window-frame-v" />
-          <div className="window-blind-strip" style={{ top: '0%' }} />
-          <div className="window-blind-strip" style={{ top: '18%' }} />
-          <div className="window-blind-strip" style={{ top: '36%' }} />
-          <div className="window-blind-strip" style={{ top: '54%' }} />
-          <div className="window-blind-strip" style={{ top: '72%' }} />
-        </div>
-        {/* Плакат на стене */}
-        <div className="room-poster">
-          <div className="poster-text">Делай<br/>что любишь</div>
-        </div>
-        {/* Лампа */}
-        <div className="room-lamp">
-          <div className="lamp-arm" />
-          <div className="lamp-head" />
-          <div className="lamp-glow" />
+    <div className="photo-desk-scene">
+      {/* Фото стола как фон */}
+      <img src={DESK_PHOTO} className="desk-photo-bg" alt="desk" draggable={false} />
+
+      {/* ── ЛЕВЫЙ МОНИТОР — кликабельный, ведёт на камеры ── */}
+      <div className="desk-overlay" style={LEFT_MON_AREA} onClick={() => setView('left')} title="Открыть камеры">
+        <div className="monitor-overlay-screen cameras-overlay">
+          <div className="cam-grid-over">
+            {[0,1,2,3,4,5,6,7,8,9].map(i => (
+              <div key={i} className="cam-over-cell">
+                <img src={ROOM_PHOTOS[i]} alt="" className="cam-over-img" />
+                <span className="cam-over-label">CAM {String(i+1).padStart(2,'0')}</span>
+              </div>
+            ))}
+          </div>
+          <div className="monitor-click-hint">📷 Нажми для просмотра</div>
         </div>
       </div>
 
-      {/* СТОЛ с перспективой */}
-      <div className="desk-3d">
-        {/* Столешница (вид сверху) */}
-        <div className="desk-tabletop">
-          {/* Левый монитор — под углом влево */}
-          <div className="monitor-left-wrap" onClick={() => setView('left')} title="Камеры">
-            <div className="monitor-stand-l" />
-            <div className="monitor-screen-l">
-              <div className="mon-screen-content">
-                <div className="cam-grid-preview">
-                  {[0,1,2,3,4,5].map(i => (
-                    <div key={i} className="cam-grid-cell">
-                      <div className="cam-cell-inner">
-                        <span className="cam-cell-num">CAM {String(i+1).padStart(2,'0')}</span>
-                        <div className="cam-cell-scene">
-                          <div className="cam-mini-floor" />
-                          <div className="cam-mini-desk" />
-                          <div className="cam-mini-person" />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="mon-hover-hint">📷 Нажми</div>
-              </div>
-            </div>
-            <div className="monitor-bezel-l" />
+      {/* ── НОУТБУК — сайт с резюме ── */}
+      <div className="desk-overlay laptop-overlay" style={LAPTOP_AREA}>
+        <div className="laptop-inner-screen">
+          <div className="laptop-url-bar">
+            <span className="url-dot green" /><span className="url-dot yellow" /><span className="url-dot red" />
+            <span className="url-text">🌐 АйНаНэНаНэ.хрю — Поиск персонала</span>
           </div>
-
-          {/* Ноутбук по центру */}
-          <div className="laptop-3d">
-            <div className="laptop-lid">
-              <div className="laptop-screen-area">
-                <div className="laptop-url-bar">
-                  <span className="url-dot green" /><span className="url-dot yellow" /><span className="url-dot red" />
-                  <span className="url-text">🌐 АйНаНэНаНэ.хрю — Поиск персонала</span>
-                </div>
-                <div
-                  className="resume-list"
-                  ref={listRef}
-                  onWheel={e => { e.stopPropagation(); if (listRef.current) listRef.current.scrollTop += e.deltaY; }}
-                >
-                  {resumes.length === 0
-                    ? <div className="resume-placeholder">📭 Пока тихо... но они уже едут</div>
-                    : resumes.map(r => <ResumeCard key={r.id} resume={r} onDismiss={dismissResume} />)
-                  }
-                </div>
-              </div>
-            </div>
-            <div className="laptop-body">
-              <div className="laptop-keyboard">
-                {[...Array(4)].map((_, row) => (
-                  <div key={row} className="keyboard-row">
-                    {[...Array(12 - row)].map((_, k) => <div key={k} className="key" />)}
-                  </div>
-                ))}
-              </div>
-              <div className="laptop-trackpad" />
-            </div>
-            <div className="laptop-stand-l" />
-            <div className="laptop-stand-r" />
-          </div>
-
-          {/* Правый монитор — под углом вправо */}
-          <div className="monitor-right-wrap" onClick={() => setView('right')} title="Кофе и отдых">
-            <div className="monitor-stand-r" />
-            <div className="monitor-screen-r">
-              <div className="mon-screen-content dark-screen">
-                <div className="coffee-preview-mon">
-                  <div className="coffee-cup-icon">☕</div>
-                  <div className="coffee-mon-label">Кофе</div>
-                  <div className="coffee-mon-sips">готов</div>
-                </div>
-                <div className="mon-hover-hint">☕ Нажми</div>
-              </div>
-            </div>
-            <div className="monitor-bezel-r" />
+          <div className="resume-list" ref={listRef}
+            onWheel={e => { e.stopPropagation(); if (listRef.current) listRef.current.scrollTop += e.deltaY; }}>
+            {resumes.length === 0
+              ? <div className="resume-placeholder">📭 Пока тихо...</div>
+              : resumes.map(r => <ResumeCard key={r.id} resume={r} onDismiss={dismissResume} />)
+            }
           </div>
         </div>
+      </div>
 
-        {/* Передняя часть стола */}
-        <div className="desk-front">
-          {/* Клавиатура */}
-          <div className="desk-keyboard-ext">
-            <div className="keyboard-ext-body">
-              {[...Array(3)].map((_, row) => (
-                <div key={row} className="keyboard-row-ext">
-                  {[...Array(14)].map((_, k) => <div key={k} className="key-ext" />)}
+      {/* ── ПРАВЫЙ МОНИТОР — кофе и кофемашина ── */}
+      <div className="desk-overlay" style={RIGHT_MON_AREA} onClick={() => !coffeeEmpty ? drinkCoffee() : goRefill()} title={coffeeEmpty ? 'Идти за кофе' : 'Сделать глоток'}>
+        <div className="monitor-overlay-screen coffee-overlay">
+          <div className="coffee-mon-inner">
+            <div className="coffee-glass-visual">
+              <div className="coffee-glass-body">
+                {!coffeeEmpty && <div className="coffee-glass-liquid" style={{ height: `${(coffeeSips / COFFEE_MAX_SIPS) * 68}%` }} />}
+                <div className="coffee-steam" style={{ opacity: coffeeEmpty ? 0 : 1 }}>
+                  <span>〜</span><span style={{ animationDelay: '0.3s' }}>〜</span>
                 </div>
-              ))}
-              <div className="keyboard-spacebar-row">
-                <div className="key-ext small" /><div className="key-ext space" /><div className="key-ext small" />
               </div>
+              <div className="coffee-glass-handle" />
+            </div>
+            <div className="coffee-mon-info">
+              <div className="coffee-sips-count">{coffeeEmpty ? '💧 Пусто' : `☕ ${coffeeSips}/${COFFEE_MAX_SIPS}`}</div>
+              {coffeeWalking && <div className="coffee-walking-bar"><div className="cwb-fill" style={{ width: `${coffeeProgress * 100}%` }} /></div>}
+              {coffeeWalking && <div className="coffee-walking-text">🚶‍♀️ {Math.round(coffeeProgress * 100)}%</div>}
+              {coffeeEmpty && !coffeeWalking && <div className="coffee-refill-hint">Нажми!</div>}
             </div>
           </div>
-          {/* Мышь */}
-          <div className="desk-mouse">
-            <div className="mouse-body">
-              <div className="mouse-button-l" />
-              <div className="mouse-button-r" />
-              <div className="mouse-wheel" />
-            </div>
-          </div>
-          {/* Красная кнопка */}
-          <div className={`red-btn-wrap ${redButtonActive ? 'btn-flashing' : ''} ${redButtonUsed && !redButtonActive ? 'btn-spent' : ''}`}
-            onClick={useRedButton} title={redButtonUsed ? 'Использована' : 'Закрыть двери!'}>
-            <div className="red-btn-cap" />
-            <div className="red-btn-base" />
-            <div className="red-btn-text">{redButtonUsed ? '✓' : '!'}</div>
-          </div>
-          {/* Блокнот */}
-          <div className="desk-notepad">
-            <div className="notepad-line" />
-            <div className="notepad-line" />
-            <div className="notepad-line short" />
-          </div>
-          {/* Ручка */}
-          <div className="desk-pen" />
-          {/* Стикеры */}
-          <div className="sticker yellow">!</div>
+          <div className="monitor-click-hint">{coffeeEmpty ? '🚶 Налить кофе' : '☕ Выпить глоток'}</div>
         </div>
-
-        {/* Ноги стола */}
-        <div className="desk-leg left" />
-        <div className="desk-leg right" />
       </div>
 
-      {/* Руки HRки */}
-      <div className="hr-hands">
-        <div className="hand-left" />
-        <div className="hand-right" />
+      {/* ── КОФЕЙНАЯ КРУЖКА на столе (отдельный клик) ── */}
+      <div className="desk-overlay coffee-cup-hotspot" style={COFFEE_AREA}
+        onClick={() => !coffeeEmpty ? drinkCoffee() : goRefill()}
+        title={coffeeEmpty ? 'Пусто — иди к кофемашине' : 'Выпить глоток'}>
+        <div className={`cup-hotspot-indicator ${coffeeEmpty ? 'empty' : ''}`}>
+          <div className="cup-fill-bar" style={{ height: `${(coffeeSips / COFFEE_MAX_SIPS) * 100}%` }} />
+        </div>
       </div>
 
+      {/* ── КРАСНАЯ КНОПКА ── */}
+      <div className="desk-overlay red-btn-hotspot" style={RED_BTN_AREA}
+        onClick={useRedButton}
+        title={redButtonUsed ? 'Использована' : '🔴 Закрыть двери!'}>
+        <div className={`photo-red-btn ${redButtonActive ? 'flashing' : ''} ${redButtonUsed && !redButtonActive ? 'spent' : ''}`}>
+          <div className="photo-red-btn-cap" />
+        </div>
+      </div>
+
+      {/* Алерты поверх фото */}
       {hrAlive > 0 && <div className="intruder-alert">⚠️ В КАБИНЕТЕ {hrAlive} СОИСКАТЕЛ{hrAlive === 1 ? 'Ь' : 'Я'}!</div>}
       {doorsClosed && <div className="doors-closed-banner">🚪 ДВЕРИ ЗАКРЫТЫ — {Math.ceil(doorsTimer / 1000)}с</div>}
     </div>
   );
 }
 
-/* ═══════════════════════════════ RESUME CARD ═══════════════════════════════ */
+/* ══ RESUME CARD ══ */
 function ResumeCard({ resume, onDismiss }: { resume: Resume; onDismiss: (id: number) => void }) {
   const avatar = resume.gender === 'M' ? MALE_AVATARS[resume.avatarIndex] : FEMALE_AVATARS[resume.avatarIndex];
   return (
@@ -558,48 +493,56 @@ function ResumeCard({ resume, onDismiss }: { resume: Resume; onDismiss: (id: num
         <div className="resume-name">{resume.name}</div>
         <div className="resume-meta">{resume.age} лет · {resume.position}</div>
       </div>
-      <button className="resume-x" onClick={() => onDismiss(resume.id)} title="Отклонить">✕</button>
+      <button className="resume-x" onClick={() => onDismiss(resume.id)}>✕</button>
     </div>
   );
 }
 
-/* ═══════════════════════════════ LEFT VIEW ═══════════════════════════════ */
+/* ══════════════════════════════════════════════════════
+   LEFT VIEW — МОНИТОР С КАМЕРАМИ (CCTV СТИЛЬ)
+══════════════════════════════════════════════════════ */
 function LeftView({ applicants, selectedRoom, setSelectedRoom, showMap, setShowMap, setView }: {
   applicants: Applicant[]; selectedRoom: number | null; setSelectedRoom: (r: number) => void;
   showMap: boolean; setShowMap: (v: boolean) => void; setView: (v: ViewDir) => void;
 }) {
   return (
     <div className="left-view">
-      <div className="side-monitor">
-        <div className="side-mon-bezel">
-          <div className="side-mon-header">
-            <span>📷 ВИДЕОНАБЛЮДЕНИЕ</span>
+      <div className="cctv-monitor-frame">
+        <div className="cctv-top-bar">
+          <span className="cctv-title">◉ ВИДЕОНАБЛЮДЕНИЕ</span>
+          <div className="cctv-top-right">
+            <span className="cctv-live">● LIVE</span>
             <button className="map-btn" onClick={() => setShowMap(!showMap)}>{showMap ? '📹 Камера' : '🗺️ План'}</button>
           </div>
-          <div className="side-mon-content">
-            {showMap
-              ? <OfficeMap applicants={applicants} selected={selectedRoom} onSelect={setSelectedRoom} />
-              : <CameraView applicants={applicants} room={selectedRoom} onPrev={() => setSelectedRoom(Math.max(0, (selectedRoom ?? 0) - 1))} onNext={() => setSelectedRoom(Math.min(9, (selectedRoom ?? 0) + 1))} />
-            }
-          </div>
         </div>
-        <div className="side-mon-stand" />
+        <div className="cctv-content">
+          {showMap
+            ? <OfficeMap applicants={applicants} selected={selectedRoom} onSelect={setSelectedRoom} />
+            : <CameraView applicants={applicants} room={selectedRoom}
+                onPrev={() => setSelectedRoom(Math.max(0, (selectedRoom ?? 0) - 1))}
+                onNext={() => setSelectedRoom(Math.min(9, (selectedRoom ?? 0) + 1))} />
+          }
+        </div>
       </div>
-      <button className="back-to-center" onClick={() => setView('center')}>← Центр</button>
+      <button className="back-to-center" onClick={() => setView('center')}>← Рабочий стол</button>
     </div>
   );
 }
 
-/* ═══════════════════════════════ OFFICE MAP ═══════════════════════════════ */
+/* ══ OFFICE MAP ══ */
 function OfficeMap({ applicants, selected, onSelect }: { applicants: Applicant[]; selected: number | null; onSelect: (id: number) => void }) {
   return (
     <div className="office-map">
-      <div className="map-title">ПЛАН ОФИСА</div>
+      <div className="map-title">ПЛАН ОФИСА — ЭТАЖ 3</div>
       <div className="map-grid">
         {ROOMS.map(r => {
           const cnt = applicants.filter(a => a.alive && a.roomId === r.id).length;
           return (
             <div key={r.id} className={`map-room ${selected === r.id ? 'map-room-sel' : ''} ${r.isHR ? 'map-hr' : ''} ${cnt > 0 ? 'map-alert' : ''}`} onClick={() => onSelect(r.id)}>
+              <div className="map-room-thumb">
+                <img src={ROOM_PHOTOS[r.id]} alt="" className="map-room-photo" />
+                {cnt > 0 && <div className="map-room-overlay-alert" />}
+              </div>
               <span className="map-room-icon">{ROOM_ICONS[r.id]}</span>
               <span className="map-room-name">{r.name}</span>
               {cnt > 0 && <span className="map-badge">⚠️{cnt}</span>}
@@ -611,228 +554,120 @@ function OfficeMap({ applicants, selected, onSelect }: { applicants: Applicant[]
   );
 }
 
-/* ═══════════════════════════════ CAMERA VIEW (псевдо-3D) ═══════════════════════════════ */
+/* ══════════════════════════════════════════════════════
+   CAMERA VIEW — ФОТОРЕАЛИСТИЧНЫЙ CCTV С FISH-EYE
+══════════════════════════════════════════════════════ */
 function CameraView({ applicants, room, onPrev, onNext }: { applicants: Applicant[]; room: number | null; onPrev: () => void; onNext: () => void }) {
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    const iv = setInterval(() => setTick(t => t + 1), 1000);
+    return () => clearInterval(iv);
+  }, []);
+
   if (room === null) return (
-    <div className="cam-empty"><span>📷</span><p>Откройте план и выберите комнату</p></div>
+    <div className="cam-empty">
+      <span>📷</span>
+      <p>Выберите комнату на плане</p>
+    </div>
   );
+
   const roomData = ROOMS[room];
   const roomApplicants = applicants.filter(a => a.alive && a.roomId === room);
+  const now = new Date();
+  const timestamp = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
 
   return (
-    <div className="cam-view">
-      <div className="cam-hud">
-        <span>КАМ {room + 1} · {roomData.name}</span>
-        <span className="cam-rec">● REC</span>
-      </div>
+    <div className="cctv-cam-view">
+      {/* Фото комнаты с fish-eye эффектом */}
+      <div className="cctv-fisheye-wrap">
+        <img src={ROOM_PHOTOS[room]} alt="" className="cctv-room-photo" draggable={false} />
 
-      {/* Изометрическая комната */}
-      <div className="cam-room-3d">
-        {/* Стены */}
-        <div className="cam-wall-back" />
-        <div className="cam-wall-left" />
-        <div className="cam-floor-iso" />
+        {/* Тёмная vignette по краям (fish-eye эффект) */}
+        <div className="cctv-fisheye-overlay" />
 
-        {/* Окно */}
-        <div className="cam-window">
-          <div className="cam-window-sky" />
-          <div className="cam-window-frame-h" />
-        </div>
+        {/* Сканлайны */}
+        <div className="cctv-scanlines" />
 
-        {/* Плинтус и лампы */}
-        <div className="cam-ceiling-light left" />
-        <div className="cam-ceiling-light right" />
+        {/* Шум */}
+        <div className="cctv-noise" />
 
-        {/* Рабочие столы с сотрудниками */}
-        <div className="cam-desk-row">
-          {[0,1,2].map(i => (
-            <WorkerDesk key={i} xOffset={i} />
+        {/* CSS-персонажи поверх фото */}
+        <div className="cctv-characters-layer">
+          {roomApplicants.map((a, i) => (
+            <CctvApplicant key={a.id} applicant={a} index={i} watching={a.stopped} />
           ))}
         </div>
 
-        {/* Растение */}
-        <div className="cam-plant">
-          <div className="plant-pot" />
-          <div className="plant-leaf l1" />
-          <div className="plant-leaf l2" />
-          <div className="plant-leaf l3" />
+        {/* HUD поверх камеры */}
+        <div className="cctv-hud-top">
+          <span className="cctv-cam-label">КАМ {String(room+1).padStart(2,'0')} · {roomData.name.toUpperCase()}</span>
+          <span className="cctv-timestamp">{timestamp}</span>
+        </div>
+        <div className="cctv-hud-bottom">
+          <span className="cctv-rec">● REC</span>
+          <span className="cctv-cam-id">CAM-{String(room+1).padStart(2,'0')}</span>
+          <span className="cctv-resolution">1080P</span>
         </div>
 
-        {/* Соискатели */}
-        {roomApplicants.map((a, i) => (
-          <ApplicantFig key={a.id} applicant={a} xPos={15 + i * 32} watching={a.stopped || room === a.roomId} />
-        ))}
-
-        {/* CCTV эффекты */}
-        <div className="cam-scanline" />
-        <div className="cam-vignette" />
-        <div className="cam-timestamp">{new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</div>
+        {/* Красный алерт если есть соискатели */}
+        {roomApplicants.length > 0 && (
+          <div className="cctv-motion-alert">⚠ ДВИЖЕНИЕ</div>
+        )}
       </div>
 
       <div className="cam-controls">
         <button onClick={onPrev}>◀</button>
-        <span>{room + 1} / 10</span>
+        <span>{room + 1} / 10 · {roomData.name}</span>
         <button onClick={onNext}>▶</button>
       </div>
     </div>
   );
 }
 
-/* ═══════════════════════════════ WORKER DESK ═══════════════════════════════ */
-function WorkerDesk({ xOffset }: { xOffset: number }) {
-  const colors = ['#4a6fa5', '#5a8a5a', '#8a5a4a'];
-  const color = colors[xOffset % colors.length];
-  const animDelay = xOffset * 0.4;
-  return (
-    <div className="worker-desk-wrap" style={{ '--desk-x': xOffset } as React.CSSProperties}>
-      {/* Стол */}
-      <div className="w-desk-top" />
-      <div className="w-desk-front" />
-      <div className="w-desk-side" />
-      {/* Монитор */}
-      <div className="w-monitor">
-        <div className="w-mon-screen" style={{ background: `linear-gradient(135deg, #0d1520, #1a2840)` }}>
-          <div className="w-mon-glow" style={{ background: `${color}44` }} />
-        </div>
-        <div className="w-mon-stand" />
-        <div className="w-mon-base" />
-      </div>
-      {/* Сотрудник */}
-      <div className="worker-person" style={{ animationDelay: `${animDelay}s` }}>
-        <div className="worker-head" style={{ background: xOffset === 1 ? '#D4956A' : '#FDBCB4' }} />
-        <div className="worker-body" style={{ background: color }} />
-        <div className="worker-arms" style={{ animationDelay: `${animDelay + 0.2}s` }}>
-          <div className="worker-arm-l" style={{ background: xOffset === 1 ? '#D4956A' : '#FDBCB4' }} />
-          <div className="worker-arm-r" style={{ background: xOffset === 1 ? '#D4956A' : '#FDBCB4' }} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════ APPLICANT FIGURE (псевдо-3D) ═══════════════════════════════ */
-function ApplicantFig({ applicant, xPos, watching }: { applicant: Applicant; xPos: number; watching: boolean }) {
+/* ══ CCTV APPLICANT (CSS персонаж поверх фото камеры) ══ */
+function CctvApplicant({ applicant, index, watching }: { applicant: Applicant; index: number; watching: boolean }) {
   const desc = APPLICANT_DESCRIPTIONS[applicant.descIndex];
   const tall = desc.height === 'высокий' || desc.height === 'высокая';
   const short = desc.height === 'низкий' || desc.height === 'низкая';
   const chubby = desc.build === 'полный' || desc.build === 'полная';
 
-  const bodyH = tall ? 52 : short ? 34 : 42;
-  const bodyW = chubby ? 24 : 16;
-  const legH = tall ? 28 : short ? 18 : 22;
+  const bodyH = tall ? 70 : short ? 46 : 58;
+  const bodyW = chubby ? 26 : 18;
+  const legH = tall ? 34 : short ? 22 : 28;
+  const xPos = 12 + index * 28;
+  const yPos = 38 + (index % 2) * 8;
 
   return (
-    <div className={`applicant-3d ${watching ? 'watching' : 'walking'}`} style={{ left: `${xPos}%`, bottom: '10%' }}>
-      {/* Тень под персонажем */}
-      <div className="appl-shadow" style={{ width: bodyW + 8 }} />
-
+    <div className={`cctv-applicant ${watching ? 'watching' : 'walking'}`}
+      style={{ left: `${xPos}%`, bottom: `${yPos}%` }}>
+      {/* Тень */}
+      <div className="ca-shadow" style={{ width: bodyW + 10 }} />
       {/* Голова */}
-      <div className="appl-head-3d" style={{ background: desc.skinColor, width: bodyW - 2, height: bodyW - 2, borderRadius: '50% 50% 40% 40%' }}>
-        {watching && <>
-          <div className="eye left" />
-          <div className="eye right" />
-        </>}
-        {/* Волосы */}
-        <div className="appl-hair" style={{ background: desc.gender === 'F' ? '#8B4513' : '#2a1a0a' }} />
+      <div className="ca-head" style={{ background: desc.skinColor, width: bodyW - 2, height: bodyW }}>
+        <div className="ca-hair" style={{ background: desc.gender === 'F' ? '#6b3a1f' : '#1a1a1a' }} />
+        {watching && <><div className="ca-eye l" /><div className="ca-eye r" /></>}
       </div>
-
       {/* Тело */}
-      <div className="appl-body-3d" style={{ background: desc.color, width: bodyW, height: bodyH }}>
-        {/* Руки */}
-        <div className="appl-arm-l" style={{ background: desc.skinColor, height: bodyH * 0.6 }} />
-        <div className="appl-arm-r" style={{ background: desc.skinColor, height: bodyH * 0.6 }} />
-        {/* Бумага A4 */}
-        <div className="appl-paper-3d">
-          <div className="paper-lines" />
+      <div className="ca-body" style={{ background: desc.color, width: bodyW, height: bodyH }}>
+        <div className="ca-arm left" style={{ background: desc.skinColor, height: bodyH * 0.55 }} />
+        <div className="ca-arm right" style={{ background: desc.skinColor, height: bodyH * 0.55 }} />
+        {/* Листок резюме */}
+        <div className="ca-paper">
+          <div className="ca-paper-lines" />
         </div>
       </div>
-
-      {/* Ноги — CSS walk animation */}
-      <div className={`appl-legs ${watching ? '' : 'legs-walking'}`}>
-        <div className="appl-leg-l" style={{ height: legH, background: '#1a1a2e' }}>
-          <div className="appl-shoe-l" />
+      {/* Ноги */}
+      <div className={`ca-legs ${watching ? '' : 'walking'}`}>
+        <div className="ca-leg l" style={{ height: legH, background: '#1a1a2e' }}>
+          <div className="ca-shoe" />
         </div>
-        <div className="appl-leg-r" style={{ height: legH, background: '#1a1a2e' }}>
-          <div className="appl-shoe-r" />
+        <div className="ca-leg r" style={{ height: legH, background: '#1a1a2e' }}>
+          <div className="ca-shoe" />
         </div>
       </div>
-
       {/* Имя */}
-      <div className="appl-nametag">{applicant.name.split(' ')[0]}</div>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════ RIGHT VIEW ═══════════════════════════════ */
-function RightView({ coffeeSips, coffeeWalking, coffeeProgress, coffeeEmpty, drinkCoffee, goRefill, setView, energy }: {
-  coffeeSips: number; coffeeWalking: boolean; coffeeProgress: number; coffeeEmpty: boolean;
-  drinkCoffee: () => void; goRefill: () => void; setView: (v: ViewDir) => void; energy: number;
-}) {
-  return (
-    <div className="right-view">
-      {/* Угол комнаты */}
-      <div className="right-room-3d">
-        <div className="rroom-wall-back" />
-        <div className="rroom-wall-right" />
-        <div className="rroom-floor" />
-
-        {/* Кулер */}
-        <div className="cooler-3d">
-          <div className="cooler-tank" />
-          <div className="cooler-body-3d" />
-          <div className="cooler-tap" />
-        </div>
-
-        {/* Кофемашина */}
-        <div className={`coffee-machine-3d ${coffeeWalking ? 'brewing' : ''}`} onClick={goRefill} title="Нажать — HRка пойдёт наливать">
-          <div className="cm-top" />
-          <div className="cm-body-3d">
-            <div className="cm-display">☕</div>
-            <div className="cm-buttons">
-              <div className="cm-btn red" />
-              <div className="cm-btn green" />
-            </div>
-            {coffeeWalking && (
-              <div className="cm-progress-bar">
-                <div className="cm-prog-fill" style={{ width: `${coffeeProgress * 100}%` }} />
-              </div>
-            )}
-          </div>
-          <div className="cm-side" />
-          <div className="cm-front" />
-          <div className="cm-label-3d">КОФЕМАШИНА</div>
-        </div>
-      </div>
-
-      {/* Стол справа с кофе */}
-      <div className="right-desk-3d">
-        <div className="right-desk-top" />
-        <div className="right-desk-front" />
-
-        {/* Кофейная кружка (стеклянная, объёмная) */}
-        <div className={`coffee-cup-3d ${coffeeEmpty ? 'empty' : ''}`} onClick={drinkCoffee} title="Сделать глоток">
-          <div className="cup-body">
-            <div className="cup-glass-side" />
-            <div className="cup-glass-front">
-              {!coffeeEmpty && (
-                <div className="cup-coffee-liquid" style={{ height: `${(coffeeSips / COFFEE_MAX_SIPS) * 70}%` }} />
-              )}
-            </div>
-            <div className="cup-handle-3d" />
-          </div>
-          <div className="cup-saucer" />
-          <div className="cup-label-3d">{coffeeSips}/{COFFEE_MAX_SIPS} глотков</div>
-        </div>
-
-        {coffeeEmpty && !coffeeWalking && (
-          <div className="refill-hint" onClick={goRefill}>→ Нажми на кофемашину!</div>
-        )}
-        {coffeeWalking && (
-          <div className="walk-status">🚶‍♀️ Идёт... {Math.round(coffeeProgress * 100)}%</div>
-        )}
-      </div>
-
-      <button className="back-to-center" onClick={() => setView('center')}>← Центр</button>
+      <div className="ca-name">{applicant.name.split(' ')[0]}</div>
     </div>
   );
 }
