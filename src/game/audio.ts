@@ -3,8 +3,6 @@
 // ═══════════════════════════════════════════════════════════
 
 let ctx: AudioContext | null = null;
-let officeNoiseNode: AudioBufferSourceNode | null = null;
-let officeGainNode: GainNode | null = null;
 let humNode: OscillatorNode | null = null;
 let humGain: GainNode | null = null;
 
@@ -16,89 +14,68 @@ function getCtx(): AudioContext {
   return ctx;
 }
 
-// ─── ФОНОВЫЙ ОФИСНЫЙ ШУМ ───────────────────────────────────
+// ─── ФОНОВЫЙ ЗВУК: ТОЛЬКО ЖУЖЖАНИЕ ЛЮМИНЕСЦЕНТНЫХ ЛАМП ──────
 export function startOfficeAmbience() {
   try {
     const ac = getCtx();
 
-    // Жужжание люминесцентных ламп (100 Гц + гармоники)
-    if (!humNode) {
-      humNode = ac.createOscillator();
-      humGain = ac.createGain();
-      humNode.type = 'sawtooth';
-      humNode.frequency.value = 100;
-      humGain.gain.value = 0.006;
+    if (humNode) return; // уже запущено
 
-      // Лёгкий фильтр — убираем высокие
-      const lpf = ac.createBiquadFilter();
-      lpf.type = 'lowpass';
-      lpf.frequency.value = 400;
+    // Основная частота лампы — 100 Гц (пилообразник)
+    humNode = ac.createOscillator();
+    humNode.type = 'sawtooth';
+    humNode.frequency.value = 100;
 
-      humNode.connect(lpf);
-      lpf.connect(humGain);
-      humGain.connect(ac.destination);
-      humNode.start();
-    }
+    // Вторая гармоника — 200 Гц, придаёт "электрический" характер
+    const hum2 = ac.createOscillator();
+    hum2.type = 'sine';
+    hum2.frequency.value = 200;
 
-    // Белый шум офиса (гул разговоров, кондиционер)
-    if (!officeNoiseNode) {
-      const bufSize = ac.sampleRate * 4;
-      const buf = ac.createBuffer(1, bufSize, ac.sampleRate);
-      const data = buf.getChannelData(0);
+    const gain2 = ac.createGain();
+    gain2.gain.value = 0.003;
 
-      // Генерируем "розовый" шум — ближе к звуку офиса
-      let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
-      for (let i = 0; i < bufSize; i++) {
-        const white = Math.random() * 2 - 1;
-        b0 = 0.99886 * b0 + white * 0.0555179;
-        b1 = 0.99332 * b1 + white * 0.0750759;
-        b2 = 0.96900 * b2 + white * 0.1538520;
-        b3 = 0.86650 * b3 + white * 0.3104856;
-        b4 = 0.55000 * b4 + white * 0.5329522;
-        b5 = -0.7616 * b5 - white * 0.0168980;
-        data[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
-        b6 = white * 0.115926;
-      }
+    // Лёгкое нерегулярное мерцание лампы
+    const lfo = ac.createOscillator();
+    lfo.type = 'sine';
+    lfo.frequency.value = 0.7; // ~раз в секунду
+    const lfoGain = ac.createGain();
+    lfoGain.gain.value = 0.001;
 
-      officeNoiseNode = ac.createBufferSource();
-      officeNoiseNode.buffer = buf;
-      officeNoiseNode.loop = true;
+    // Фильтр — убираем слишком высокие частоты
+    const lpf = ac.createBiquadFilter();
+    lpf.type = 'lowpass';
+    lpf.frequency.value = 600;
 
-      officeGainNode = ac.createGain();
-      officeGainNode.gain.value = 0;
+    humGain = ac.createGain();
+    humGain.gain.value = 0;
 
-      // Полосовой фильтр 200–2000 Гц — "офисный" звук
-      const bpf = ac.createBiquadFilter();
-      bpf.type = 'bandpass';
-      bpf.frequency.value = 800;
-      bpf.Q.value = 0.3;
+    // Собираем граф: осцилляторы → фильтр → gain → output
+    humNode.connect(lpf);
+    hum2.connect(gain2);
+    gain2.connect(lpf);
+    lfo.connect(lfoGain);
+    lfoGain.connect(humGain.gain); // LFO модулирует громкость
+    lpf.connect(humGain);
+    humGain.connect(ac.destination);
 
-      officeNoiseNode.connect(bpf);
-      bpf.connect(officeGainNode);
-      officeGainNode.connect(ac.destination);
-      officeNoiseNode.start();
+    humNode.start();
+    hum2.start();
+    lfo.start();
 
-      // Плавный fade-in — шум/вытяжка тише лампы
-      officeGainNode.gain.linearRampToValueAtTime(0.008, ac.currentTime + 3);
-    }
+    // Плавный fade-in до хорошо слышимой громкости
+    humGain.gain.linearRampToValueAtTime(0.022, ac.currentTime + 2.5);
   } catch (e) {
-    // Тихо игнорируем — браузер мог заблокировать
+    // ignore
   }
 }
 
 export function stopOfficeAmbience() {
   try {
-    if (officeGainNode) {
-      officeGainNode.gain.linearRampToValueAtTime(0, (ctx?.currentTime ?? 0) + 1);
-    }
     if (humGain) {
       humGain.gain.linearRampToValueAtTime(0, (ctx?.currentTime ?? 0) + 1);
     }
     setTimeout(() => {
-      officeNoiseNode?.stop();
-      humNode?.stop();
-      officeNoiseNode = null;
-      officeGainNode = null;
+      try { humNode?.stop(); } catch (_) { /* ignore */ }
       humNode = null;
       humGain = null;
     }, 1200);
