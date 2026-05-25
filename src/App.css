@@ -1230,8 +1230,247 @@ body {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   CCTV ПЕРСОНАЖИ
+   CCTV ПЕРСОНАЖИ — SVG-люди + POP-анимация
 ═══════════════════════════════════════════════════════════ */
+
+/* Обёртка нового SVG-персонажа */
+.cctv-person-wrap {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: left 2s ease;
+  z-index: 5;
+}
+.cctv-person-wrap.walking {
+  animation: person-walk-bob 0.5s ease-in-out infinite alternate;
+}
+@keyframes person-walk-bob {
+  from {
+    transform: translateY(0px);
+  }
+  to {
+    transform: translateY(-3px);
+  }
+}
+.cctv-person-wrap.watching {
+  animation: person-watch-sway 2.5s ease-in-out infinite;
+}
+@keyframes person-watch-sway {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  30% {
+    transform: translateY(-1px) rotate(0.5deg);
+  }
+  70% {
+    transform: translateY(-1px) rotate(-0.5deg);
+  }
+}
+
+/* SVG-изображение персонажа */
+.cctv-person-img {
+  display: block;
+  image-rendering: crisp-edges;
+  /* Слабый CCTV-оттенок */
+  filter: saturate(0.82) brightness(0.88) contrast(1.05);
+}
+
+/* Кольцо обратного отсчёта */
+.stare-timer {
+  position: absolute;
+  top: -36px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 32px;
+  height: 32px;
+  z-index: 10;
+}
+.stare-seconds {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 900;
+  color: #fff;
+  font-family: monospace;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+/* POP контейнер */
+.pop-bubble {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 80px;
+  height: 80px;
+  pointer-events: none;
+  z-index: 20;
+}
+
+/* Кольца взрыва */
+.pop-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  animation: pop-ring-expand 0.65s ease-out forwards;
+}
+.pop-ring.r1 {
+  border: 3px solid rgba(255, 200, 80, 0.9);
+  animation-delay: 0s;
+}
+.pop-ring.r2 {
+  border: 2px solid rgba(255, 120, 40, 0.75);
+  animation-delay: 0.08s;
+  width: 60px;
+  height: 60px;
+  top: 10px;
+  left: 10px;
+}
+.pop-ring.r3 {
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  animation-delay: 0.15s;
+  width: 44px;
+  height: 44px;
+  top: 18px;
+  left: 18px;
+}
+
+@keyframes pop-ring-expand {
+  0% {
+    transform: scale(0.3);
+    opacity: 1;
+  }
+  60% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+/* Частицы */
+.pop-particles {
+  position: absolute;
+  inset: 0;
+}
+.pop-particle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #fbbf24;
+  animation: pop-particle-fly 0.6s ease-out forwards;
+  transform-origin: 0 0;
+}
+@keyframes pop-particle-fly {
+  0% {
+    transform: rotate(var(--angle)) translateX(0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: rotate(var(--angle)) translateX(36px) scale(0.2);
+    opacity: 0;
+  }
+}
+/* Разные цвета частиц */
+.pop-particle:nth-child(1) {
+  background: #ef4444;
+}
+.pop-particle:nth-child(2) {
+  background: #f97316;
+}
+.pop-particle:nth-child(3) {
+  background: #facc15;
+}
+.pop-particle:nth-child(4) {
+  background: #4ade80;
+}
+.pop-particle:nth-child(5) {
+  background: #60a5fa;
+}
+.pop-particle:nth-child(6) {
+  background: #e879f9;
+}
+.pop-particle:nth-child(7) {
+  background: #fb7185;
+}
+.pop-particle:nth-child(8) {
+  background: #fbbf24;
+}
+
+/* Эмодзи-взрыв */
+.pop-emoji {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 28px;
+  animation: pop-emoji-appear 0.65s ease-out forwards;
+}
+@keyframes pop-emoji-appear {
+  0% {
+    transform: translate(-50%, -50%) scale(0.2);
+    opacity: 0;
+  }
+  30% {
+    transform: translate(-50%, -50%) scale(1.4);
+    opacity: 1;
+  }
+  70% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(0.5);
+    opacity: 0;
+  }
+}
+
+/* Сам персонаж при pop — сжимается */
+.cctv-person-wrap.popping .cctv-person-img {
+  animation: person-pop-squeeze 0.65s ease-out forwards;
+}
+@keyframes person-pop-squeeze {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  40% {
+    transform: scale(1.2, 0.8);
+    opacity: 0.9;
+  }
+  70% {
+    transform: scale(0.1, 0.1);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(0);
+    opacity: 0;
+  }
+}
+
+.ca-name {
+  font-size: 8px;
+  color: rgba(0, 255, 100, 0.9);
+  font-weight: 700;
+  margin-top: 2px;
+  white-space: nowrap;
+  font-family: monospace;
+  text-shadow: 0 0 4px rgba(0, 255, 100, 0.6);
+  background: rgba(0, 0, 0, 0.55);
+  padding: 1px 3px;
+  border-radius: 1px;
+}
+
+/* Старый класс (совместимость) */
 .cctv-applicant {
   position: absolute;
   display: flex;

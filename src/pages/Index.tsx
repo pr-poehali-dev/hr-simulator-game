@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { MALE_AVATARS, FEMALE_AVATARS } from '@/game/avatars';
 import {
   generateResume, randomBetween, pick,
   ROOMS, ROOM_ICONS, APPLICANT_DESCRIPTIONS,
   MALE_NAMES, FEMALE_NAMES, LAST_NAMES_M, LAST_NAMES_F
 } from '@/game/data';
+import { PERSON_STYLES, renderPersonSVG, svgToDataUrl } from '@/game/people';
 
 type GameState = 'menu' | 'playing' | 'paused' | 'gameover';
 type ViewDir = 'center' | 'left' | 'right';
@@ -267,6 +268,11 @@ export default function Index() {
     setApplicants(prev => prev.map(a => a.roomId === HR_ROOM_ID ? { ...a, alive: false } : a));
   }, [redButtonUsed]);
 
+  // Когда соискатель «лопнул» от 10 секунд наблюдения — убираем из игры
+  const popApplicant = useCallback((id: number) => {
+    setApplicants(prev => prev.filter(a => a.id !== id));
+  }, []);
+
   const gameHour = getGameHour(elapsed);
   const hrAlive = applicants.filter(a => a.alive && a.roomId === HR_ROOM_ID);
   const blurAmt = energy < 80 ? ((80 - energy) / 80) * 12 : 0;
@@ -291,9 +297,9 @@ export default function Index() {
       {bloodOpacity > 0 && <div className="blood-vignette" style={{ opacity: bloodOpacity }} />}
       <HUD elapsed={elapsed} energy={energy} resumeCount={resumes.length} hrAlive={hrAlive.length} gameHour={gameHour} />
       <div className="game-scene">
-        {view === 'left' && <LeftView applicants={applicants} selectedRoom={selectedRoom} setSelectedRoom={r => { setSelectedRoom(r); setShowMap(false); }} showMap={showMap} setShowMap={setShowMap} setView={setView} />}
+        {view === 'left' && <LeftView applicants={applicants} selectedRoom={selectedRoom} setSelectedRoom={r => { setSelectedRoom(r); setShowMap(false); }} showMap={showMap} setShowMap={setShowMap} setView={setView} onPopApplicant={popApplicant} />}
         {view === 'center' && <CenterView resumes={resumes} dismissResume={dismissResume} redButtonUsed={redButtonUsed} redButtonActive={redButtonActive} useRedButton={useRedButton} doorsClosed={doorsClosed} doorsTimer={doorsTimer} hrAlive={hrAlive.length} setView={setView} coffeeSips={coffeeSips} coffeeEmpty={coffeeEmpty} drinkCoffee={drinkCoffee} goRefill={goRefill} coffeeWalking={coffeeWalking} coffeeProgress={coffeeProgress} />}
-        {view === 'right' && <LeftView applicants={applicants} selectedRoom={selectedRoom} setSelectedRoom={r => { setSelectedRoom(r); setShowMap(false); }} showMap={showMap} setShowMap={setShowMap} setView={setView} />}
+        {view === 'right' && <LeftView applicants={applicants} selectedRoom={selectedRoom} setSelectedRoom={r => { setSelectedRoom(r); setShowMap(false); }} showMap={showMap} setShowMap={setShowMap} setView={setView} onPopApplicant={popApplicant} />}
       </div>
       <div className="view-nav">
         <button className={`vnav-btn ${view === 'left' ? 'active' : ''}`} onClick={() => setView('left')}>◀ Камеры</button>
@@ -502,9 +508,10 @@ function ResumeCard({ resume, onDismiss }: { resume: Resume; onDismiss: (id: num
 /* ══════════════════════════════════════════════════════
    LEFT VIEW — МОНИТОР С КАМЕРАМИ (CCTV СТИЛЬ)
 ══════════════════════════════════════════════════════ */
-function LeftView({ applicants, selectedRoom, setSelectedRoom, showMap, setShowMap, setView }: {
+function LeftView({ applicants, selectedRoom, setSelectedRoom, showMap, setShowMap, setView, onPopApplicant }: {
   applicants: Applicant[]; selectedRoom: number | null; setSelectedRoom: (r: number) => void;
   showMap: boolean; setShowMap: (v: boolean) => void; setView: (v: ViewDir) => void;
+  onPopApplicant: (id: number) => void;
 }) {
   return (
     <div className="left-view">
@@ -519,9 +526,13 @@ function LeftView({ applicants, selectedRoom, setSelectedRoom, showMap, setShowM
         <div className="cctv-content">
           {showMap
             ? <OfficeMap applicants={applicants} selected={selectedRoom} onSelect={setSelectedRoom} />
-            : <CameraView applicants={applicants} room={selectedRoom}
+            : <CameraView
+                applicants={applicants}
+                room={selectedRoom}
                 onPrev={() => setSelectedRoom(Math.max(0, (selectedRoom ?? 0) - 1))}
-                onNext={() => setSelectedRoom(Math.min(9, (selectedRoom ?? 0) + 1))} />
+                onNext={() => setSelectedRoom(Math.min(9, (selectedRoom ?? 0) + 1))}
+                onPopApplicant={onPopApplicant}
+              />
           }
         </div>
       </div>
@@ -556,15 +567,68 @@ function OfficeMap({ applicants, selected, onSelect }: { applicants: Applicant[]
 }
 
 /* ══════════════════════════════════════════════════════
-   CAMERA VIEW — ФОТОРЕАЛИСТИЧНЫЙ CCTV С FISH-EYE
+   CAMERA VIEW — CCTV С ТАЙМЕРОМ 10 СЕК → POP
 ══════════════════════════════════════════════════════ */
-function CameraView({ applicants, room, onPrev, onNext }: { applicants: Applicant[]; room: number | null; onPrev: () => void; onNext: () => void }) {
-  const [tick, setTick] = useState(0);
+const STARE_TIMEOUT = 10000; // 10 секунд смотрим → соискатель лопается
 
+function CameraView({ applicants, room, onPrev, onNext, onPopApplicant }: {
+  applicants: Applicant[];
+  room: number | null;
+  onPrev: () => void;
+  onNext: () => void;
+  onPopApplicant: (id: number) => void;
+}) {
+  const [tick, setTick] = useState(0);
+  // watchTime[id] = сколько мс смотрим на этого конкретного соискателя
+  const [watchTimes, setWatchTimes] = useState<Record<number, number>>({});
+  // popping[id] = true → показываем pop-анимацию
+  const [popping, setPopping] = useState<Record<number, boolean>>({});
+
+  // Тик для отображения секунд
   useEffect(() => {
     const iv = setInterval(() => setTick(t => t + 1), 1000);
     return () => clearInterval(iv);
   }, []);
+
+  // Таймер наблюдения — считаем по 200мс пока смотрим на комнату с соискателями
+  useEffect(() => {
+    if (room === null) return;
+    const TICK = 200;
+    const iv = setInterval(() => {
+      const roomApps = applicants.filter(a => a.alive && a.roomId === room);
+      if (roomApps.length === 0) return;
+
+      setWatchTimes(prev => {
+        const next = { ...prev };
+        roomApps.forEach(a => {
+          next[a.id] = (next[a.id] || 0) + TICK;
+        });
+        return next;
+      });
+    }, 200);
+    return () => clearInterval(iv);
+  }, [room, applicants]);
+
+  // Проверяем — кто достиг 10 сек?
+  useEffect(() => {
+    Object.entries(watchTimes).forEach(([idStr, ms]) => {
+      const id = Number(idStr);
+      if (ms >= STARE_TIMEOUT && !popping[id]) {
+        // Запускаем pop-анимацию
+        setPopping(prev => ({ ...prev, [id]: true }));
+        // Через 600мс (длина анимации) убираем из игры
+        setTimeout(() => {
+          onPopApplicant(id);
+        }, 650);
+      }
+    });
+  }, [watchTimes, popping, onPopApplicant]);
+
+  // Сброс таймеров при смене комнаты
+  useEffect(() => {
+    setWatchTimes({});
+    setPopping({});
+  }, [room]);
 
   if (room === null) return (
     <div className="cam-empty">
@@ -580,27 +644,31 @@ function CameraView({ applicants, room, onPrev, onNext }: { applicants: Applican
 
   return (
     <div className="cctv-cam-view">
-      {/* Фото комнаты с fish-eye эффектом */}
       <div className="cctv-fisheye-wrap">
         <img src={ROOM_PHOTOS[room]} alt="" className="cctv-room-photo" draggable={false} />
-
-        {/* Тёмная vignette по краям (fish-eye эффект) */}
         <div className="cctv-fisheye-overlay" />
-
-        {/* Сканлайны */}
         <div className="cctv-scanlines" />
-
-        {/* Шум */}
         <div className="cctv-noise" />
 
-        {/* CSS-персонажи поверх фото */}
         <div className="cctv-characters-layer">
-          {roomApplicants.map((a, i) => (
-            <CctvApplicant key={a.id} applicant={a} index={i} watching={a.stopped} />
-          ))}
+          {roomApplicants.map((a, i) => {
+            const ms = watchTimes[a.id] || 0;
+            const isPop = popping[a.id] || false;
+            const progress = Math.min(1, ms / STARE_TIMEOUT);
+            return (
+              <CctvApplicant
+                key={a.id}
+                applicant={a}
+                index={i}
+                watching={a.stopped}
+                watchProgress={progress}
+                isPopping={isPop}
+                frame={tick}
+              />
+            );
+          })}
         </div>
 
-        {/* HUD поверх камеры */}
         <div className="cctv-hud-top">
           <span className="cctv-cam-label">КАМ {String(room+1).padStart(2,'0')} · {roomData.name.toUpperCase()}</span>
           <span className="cctv-timestamp">{timestamp}</span>
@@ -611,7 +679,6 @@ function CameraView({ applicants, room, onPrev, onNext }: { applicants: Applican
           <span className="cctv-resolution">1080P</span>
         </div>
 
-        {/* Красный алерт если есть соискатели */}
         {roomApplicants.length > 0 && (
           <div className="cctv-motion-alert">⚠ ДВИЖЕНИЕ</div>
         )}
@@ -626,49 +693,80 @@ function CameraView({ applicants, room, onPrev, onNext }: { applicants: Applican
   );
 }
 
-/* ══ CCTV APPLICANT (CSS персонаж поверх фото камеры) ══ */
-function CctvApplicant({ applicant, index, watching }: { applicant: Applicant; index: number; watching: boolean }) {
-  const desc = APPLICANT_DESCRIPTIONS[applicant.descIndex];
-  const tall = desc.height === 'высокий' || desc.height === 'высокая';
-  const short = desc.height === 'низкий' || desc.height === 'низкая';
-  const chubby = desc.build === 'полный' || desc.build === 'полная';
+/* ══ CCTV APPLICANT — SVG-человек + pop-анимация ══ */
+function CctvApplicant({ applicant, index, watching, watchProgress, isPopping, frame }: {
+  applicant: Applicant;
+  index: number;
+  watching: boolean;
+  watchProgress: number; // 0..1
+  isPopping: boolean;
+  frame: number;
+}) {
+  const style = PERSON_STYLES[applicant.descIndex % PERSON_STYLES.length];
+  const isWalking = !watching && !isPopping;
 
-  const bodyH = tall ? 70 : short ? 46 : 58;
-  const bodyW = chubby ? 26 : 18;
-  const legH = tall ? 34 : short ? 22 : 28;
-  const xPos = 15 + index * 30;
-  // bottom маленький = персонаж у нижнего края = стоит на полу
-  const yPos = 3 + (index % 2) * 5;
+  // Генерируем SVG только при изменении frame (анимация ходьбы)
+  const svgUrl = useMemo(() => {
+    const svg = renderPersonSVG(style, isWalking, frame);
+    return svgToDataUrl(svg);
+  }, [style, isWalking, frame]);
+
+  const xPos = 12 + index * 32;
+  const yPos = 2 + (index % 2) * 6;
+
+  // Размер с учётом heightMult
+  const baseH = 110;
+  const h = Math.round(baseH * style.heightMult);
 
   return (
-    <div className={`cctv-applicant ${watching ? 'watching' : 'walking'}`}
-      style={{ left: `${xPos}%`, bottom: `${yPos}%` }}>
-      {/* Тень */}
-      <div className="ca-shadow" style={{ width: bodyW + 10 }} />
-      {/* Голова */}
-      <div className="ca-head" style={{ background: desc.skinColor, width: bodyW - 2, height: bodyW }}>
-        <div className="ca-hair" style={{ background: desc.gender === 'F' ? '#6b3a1f' : '#1a1a1a' }} />
-        {watching && <><div className="ca-eye l" /><div className="ca-eye r" /></>}
-      </div>
-      {/* Тело */}
-      <div className="ca-body" style={{ background: desc.color, width: bodyW, height: bodyH }}>
-        <div className="ca-arm left" style={{ background: desc.skinColor, height: bodyH * 0.55 }} />
-        <div className="ca-arm right" style={{ background: desc.skinColor, height: bodyH * 0.55 }} />
-        {/* Листок резюме */}
-        <div className="ca-paper">
-          <div className="ca-paper-lines" />
+    <div
+      className={`cctv-person-wrap ${isPopping ? 'popping' : ''} ${watching ? 'watching' : 'walking'}`}
+      style={{ left: `${xPos}%`, bottom: `${yPos}%` }}
+    >
+      {/* Прогресс-кольцо: сколько осталось до pop */}
+      {watchProgress > 0 && watchProgress < 1 && !isPopping && (
+        <div className="stare-timer">
+          <svg viewBox="0 0 32 32" width="32" height="32">
+            <circle cx="16" cy="16" r="13" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="3"/>
+            <circle
+              cx="16" cy="16" r="13"
+              fill="none"
+              stroke={watchProgress > 0.7 ? '#ef4444' : watchProgress > 0.4 ? '#f97316' : '#facc15'}
+              strokeWidth="3"
+              strokeDasharray={`${watchProgress * 81.7} 81.7`}
+              strokeLinecap="round"
+              transform="rotate(-90 16 16)"
+            />
+          </svg>
+          <span className="stare-seconds">{Math.ceil((1 - watchProgress) * 10)}</span>
         </div>
-      </div>
-      {/* Ноги */}
-      <div className={`ca-legs ${watching ? '' : 'walking'}`}>
-        <div className="ca-leg l" style={{ height: legH, background: '#1a1a2e' }}>
-          <div className="ca-shoe" />
+      )}
+
+      {/* SVG-человек */}
+      <img
+        src={svgUrl}
+        alt={applicant.name}
+        className="cctv-person-img"
+        style={{ height: `${h}px`, width: 'auto' }}
+        draggable={false}
+      />
+
+      {/* Pop-пузырь (появляется при isPopping) */}
+      {isPopping && (
+        <div className="pop-bubble">
+          <div className="pop-ring r1" />
+          <div className="pop-ring r2" />
+          <div className="pop-ring r3" />
+          <div className="pop-particles">
+            {[...Array(8)].map((_, i) => (
+              <div key={i} className="pop-particle" style={{ '--angle': `${i * 45}deg` } as React.CSSProperties} />
+            ))}
+          </div>
+          <span className="pop-emoji">💥</span>
         </div>
-        <div className="ca-leg r" style={{ height: legH, background: '#1a1a2e' }}>
-          <div className="ca-shoe" />
-        </div>
-      </div>
-      {/* Имя */}
+      )}
+
+      {/* Имя под персонажем */}
       <div className="ca-name">{applicant.name.split(' ')[0]}</div>
     </div>
   );
