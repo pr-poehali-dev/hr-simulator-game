@@ -6,6 +6,11 @@ import {
   MALE_NAMES, FEMALE_NAMES, LAST_NAMES_M, LAST_NAMES_F
 } from '@/game/data';
 import { PERSON_STYLES, renderPersonSVG, svgToDataUrl } from '@/game/people';
+import {
+  initAudio, startOfficeAmbience, stopOfficeAmbience,
+  playRejectSound, playPopSound,
+  startApplicantSpeech, stopApplicantSpeech, stopAllApplicantSpeech
+} from '@/game/audio';
 
 type GameState = 'menu' | 'playing' | 'paused' | 'gameover';
 type ViewDir = 'center' | 'left' | 'right';
@@ -121,6 +126,8 @@ export default function Index() {
     setGameState('gameover');
     saveRecord({ survived: t, resumes: processedRef.current, date: new Date().toLocaleDateString('ru-RU') });
     setRecords(getLocalRecords());
+    stopOfficeAmbience();
+    stopAllApplicantSpeech();
   }, []);
 
   const resetGame = useCallback(() => {
@@ -130,8 +137,20 @@ export default function Index() {
     setDeathReason(''); setRedButtonUsed(false); setRedButtonActive(false);
     setDoorsClosed(false); setDoorsTimer(0); setProcessedResumes(0);
     resumeIdRef.current = 0; applicantIdRef.current = 0;
+    initAudio();
+    startOfficeAmbience();
     setGameState('playing');
   }, []);
+
+  // Останавливаем фон при паузе/выходе
+  useEffect(() => {
+    if (gameState === 'playing') {
+      startOfficeAmbience();
+    } else {
+      stopOfficeAmbience();
+      stopAllApplicantSpeech();
+    }
+  }, [gameState]);
 
   useEffect(() => {
     if (gameState !== 'playing') return;
@@ -239,6 +258,7 @@ export default function Index() {
   const dismissResume = useCallback((id: number) => {
     setResumes(p => p.filter(r => r.id !== id));
     setProcessedResumes(p => p + 1);
+    playRejectSound();
   }, []);
 
   const drinkCoffee = useCallback(() => {
@@ -270,6 +290,8 @@ export default function Index() {
 
   // Когда соискатель «лопнул» от 10 секунд наблюдения — убираем из игры
   const popApplicant = useCallback((id: number) => {
+    playPopSound();
+    stopApplicantSpeech(id);
     setApplicants(prev => prev.filter(a => a.id !== id));
   }, []);
 
@@ -343,7 +365,7 @@ function MenuScreen({ onStart, showRecords, setShowRecords, records }: { onStart
         <h1 className="menu-title">Симулятор HRки</h1>
         <p className="menu-sub">Выживи с 09:00 до 18:00. Не дай им добраться.</p>
         <div className="menu-btns">
-          <button className="btn-primary" onClick={onStart}>▶ Новая игра</button>
+          <button className="btn-primary" onClick={() => { initAudio(); onStart(); }}>▶ Новая игра</button>
           <button className="btn-ghost" onClick={() => setShowRecords(!showRecords)}>🏆 Рекорды</button>
         </div>
         {showRecords && (
@@ -541,23 +563,20 @@ function LeftView({ applicants, selectedRoom, setSelectedRoom, showMap, setShowM
   );
 }
 
-/* ══ OFFICE MAP ══ */
-function OfficeMap({ applicants, selected, onSelect }: { applicants: Applicant[]; selected: number | null; onSelect: (id: number) => void }) {
+/* ══ OFFICE MAP — без подсветки соискателей (усложнение игры) ══ */
+function OfficeMap({ applicants: _applicants, selected, onSelect }: { applicants: Applicant[]; selected: number | null; onSelect: (id: number) => void }) {
   return (
     <div className="office-map">
       <div className="map-title">ПЛАН ОФИСА — ЭТАЖ 3</div>
       <div className="map-grid">
         {ROOMS.map(r => {
-          const cnt = applicants.filter(a => a.alive && a.roomId === r.id).length;
           return (
-            <div key={r.id} className={`map-room ${selected === r.id ? 'map-room-sel' : ''} ${r.isHR ? 'map-hr' : ''} ${cnt > 0 ? 'map-alert' : ''}`} onClick={() => onSelect(r.id)}>
+            <div key={r.id} className={`map-room ${selected === r.id ? 'map-room-sel' : ''} ${r.isHR ? 'map-hr' : ''}`} onClick={() => onSelect(r.id)}>
               <div className="map-room-thumb">
                 <img src={ROOM_PHOTOS[r.id]} alt="" className="map-room-photo" />
-                {cnt > 0 && <div className="map-room-overlay-alert" />}
               </div>
               <span className="map-room-icon">{ROOM_ICONS[r.id]}</span>
               <span className="map-room-name">{r.name}</span>
-              {cnt > 0 && <span className="map-badge">⚠️{cnt}</span>}
             </div>
           );
         })}
@@ -601,7 +620,12 @@ function CameraView({ applicants, room, onPrev, onNext, onPopApplicant }: {
       setWatchTimes(prev => {
         const next = { ...prev };
         roomApps.forEach(a => {
-          next[a.id] = (next[a.id] || 0) + TICK;
+          const wasZero = !prev[a.id] || prev[a.id] === 0;
+          next[a.id] = (prev[a.id] || 0) + TICK;
+          // Запускаем речь соискателя при первом тике отсчёта
+          if (wasZero) {
+            startApplicantSpeech(a.id, a.descIndex);
+          }
         });
         return next;
       });
@@ -624,8 +648,9 @@ function CameraView({ applicants, room, onPrev, onNext, onPopApplicant }: {
     });
   }, [watchTimes, popping, onPopApplicant]);
 
-  // Сброс таймеров при смене комнаты
+  // Сброс таймеров и остановка речи при смене комнаты
   useEffect(() => {
+    stopAllApplicantSpeech();
     setWatchTimes({});
     setPopping({});
   }, [room]);
